@@ -1,0 +1,26 @@
+SPARTA ARENA - PC EDITION
+
+KURULUM (Windows 10/11)
+1. Python 3.11'i python.org adresinden indirip kur. Kurulumda "Add Python to PATH" kutusunu isaretle.
+2. Bu klasorde bos bir yere Shift + sag tik yapip "Terminalde ac" sec.
+3. Su komutu calistir:
+   python -m pip install -r requirements.txt
+4. Oyunu baslat:
+   python main.py
+
+KONTROLLER
+- WASD veya ok tuslari: hareket
+- SPACE: saldiri
+- Sol SHIFT veya sag SHIFT: blok/savunma
+- Q: iksir kullan
+- ESC: oyunu duraklat
+- Menu ekraninda yukari/asagi: mod sec
+- Karakter ve harita ekranlarinda sol/sag: secim
+- ENTER: onayla/devam
+- Duraklatma ekraninda M: ana menu
+
+MODLAR
+- Klasik Arena: dusman dalgalarini temizle; her dalga sonrasi biraz can ve iksir kazan.
+- Sicak Patates: bombadan kac, sure bitene kadar hayatta kal.
+
+Not: Bu, dis goruntu dosyasi gerektirmeyen bagimsiz PC oyun surumudur. Android projesindeki tum sistemlerin bire bir aktarimi degildir.
