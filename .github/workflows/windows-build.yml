@@ -1,0 +1,81 @@
+name: Sparta Arena Windows Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Depoyu indir
+        uses: actions/checkout@v4
+
+      - name: Python kur
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Bağımlılıkları kur ve kodu kontrol et
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          python -m pip install --upgrade pip
+          if ($LASTEXITCODE -ne 0) { throw "pip güncellenemedi." }
+          python -m pip install -r requirements.txt pyinstaller
+          if ($LASTEXITCODE -ne 0) { throw "Pygame/PyInstaller kurulamadı." }
+          python -m py_compile main.py
+          if ($LASTEXITCODE -ne 0) { throw "main.py içinde sözdizimi hatası var." }
+
+      - name: Windows EXE oluştur
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $log = Join-Path $env:GITHUB_WORKSPACE "windows-build.log"
+          $dist = Join-Path $env:GITHUB_WORKSPACE "dist"
+          $work = Join-Path $env:RUNNER_TEMP "SpartaArenaBuild"
+          $spec = Join-Path $env:RUNNER_TEMP "SpartaArenaSpec"
+          New-Item -ItemType File -Path $log -Force | Out-Null
+
+          & python -m PyInstaller `
+            --noconfirm `
+            --clean `
+            --onedir `
+            --windowed `
+            --name SpartaArena `
+            --collect-all pygame `
+            --distpath $dist `
+            --workpath $work `
+            --specpath $spec `
+            main.py 2>&1 | Tee-Object -FilePath $log -Append
+
+          if ($LASTEXITCODE -ne 0) { throw "PyInstaller derlemesi başarısız." }
+
+          $appDir = Join-Path $dist "SpartaArena"
+          $exe = Join-Path $appDir "SpartaArena.exe"
+          if (!(Test-Path $exe)) { throw "SpartaArena.exe oluşturulamadı." }
+
+          Copy-Item requirements.txt $appDir -Force
+          Copy-Item Windows_Kurulum.txt $appDir -Force
+
+          $archive = Join-Path $env:GITHUB_WORKSPACE "SpartaArena-Windows.zip"
+          Compress-Archive -Path (Join-Path $appDir "*") -DestinationPath $archive -Force
+          Write-Host "Windows paketi oluşturuldu: $archive"
+
+      - name: Windows paketini ve derleme günlüğünü sakla
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Sparta-Arena-Windows
+          path: |
+            SpartaArena-Windows.zip
+            windows-build.log
+          if-no-files-found: warn
+          retention-days: 7
