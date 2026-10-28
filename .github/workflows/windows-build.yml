@@ -1,10 +1,10 @@
+
 name: Sparta Arena Windows Build
 
 on:
   workflow_dispatch:
   push:
-    branches:
-      - main
+    branches: [main]
 
 permissions:
   contents: read
@@ -23,59 +23,70 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Bağımlılıkları kur ve kodu kontrol et
+      - name: Oyun dosyasını bul ve bağımlılıkları kur
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
+
+          $main = Get-ChildItem $env:GITHUB_WORKSPACE -Filter "main.py" -Recurse -File |
+            Where-Object { $_.FullName -notmatch '[\\/]\.git[\\/]' } |
+            Select-Object -First 1
+
+          if (!$main) {
+            throw "main.py bulunamadi. GitHub deposuna main.py dosyasini yukle."
+          }
+
+          "GAME_DIR=$($main.Directory.FullName)" >> $env:GITHUB_ENV
+          "GAME_MAIN=$($main.FullName)" >> $env:GITHUB_ENV
+
           python -m pip install --upgrade pip
-          if ($LASTEXITCODE -ne 0) { throw "pip güncellenemedi." }
-          python -m pip install -r requirements.txt pyinstaller
-          if ($LASTEXITCODE -ne 0) { throw "Pygame/PyInstaller kurulamadı." }
-          python -m py_compile main.py
-          if ($LASTEXITCODE -ne 0) { throw "main.py içinde sözdizimi hatası var." }
+          if ($LASTEXITCODE -ne 0) { throw "pip kurulumu basarisiz." }
+
+          python -m pip install pygame==2.6.1 pyinstaller
+          if ($LASTEXITCODE -ne 0) { throw "Gerekli kutuphaneler kurulamadi." }
+
+          python -m py_compile "$($main.FullName)"
+          if ($LASTEXITCODE -ne 0) {
+            throw "main.py dosyasinda Python kod hatasi var."
+          }
 
       - name: Windows EXE oluştur
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          $log = Join-Path $env:GITHUB_WORKSPACE "windows-build.log"
-          $dist = Join-Path $env:GITHUB_WORKSPACE "dist"
-          $work = Join-Path $env:RUNNER_TEMP "SpartaArenaBuild"
-          $spec = Join-Path $env:RUNNER_TEMP "SpartaArenaSpec"
-          New-Item -ItemType File -Path $log -Force | Out-Null
 
-          & python -m PyInstaller `
-            --noconfirm `
-            --clean `
-            --onedir `
-            --windowed `
-            --name SpartaArena `
-            --collect-all pygame `
-            --distpath $dist `
-            --workpath $work `
-            --specpath $spec `
-            main.py 2>&1 | Tee-Object -FilePath $log -Append
+          New-Item -ItemType Directory -Path "dist" -Force | Out-Null
 
-          if ($LASTEXITCODE -ne 0) { throw "PyInstaller derlemesi başarısız." }
+          Push-Location $env:GAME_DIR
+          try {
+            python -m PyInstaller `
+              --noconfirm `
+              --clean `
+              --onefile `
+              --windowed `
+              --name SpartaArena `
+              --collect-all pygame `
+              --distpath "$env:GITHUB_WORKSPACE\dist" `
+              "$env:GAME_MAIN"
 
-          $appDir = Join-Path $dist "SpartaArena"
-          $exe = Join-Path $appDir "SpartaArena.exe"
-          if (!(Test-Path $exe)) { throw "SpartaArena.exe oluşturulamadı." }
+            if ($LASTEXITCODE -ne 0) {
+              throw "EXE derlemesi basarisiz oldu."
+            }
+          }
+          finally {
+            Pop-Location
+          }
 
-          Copy-Item requirements.txt $appDir -Force
-          Copy-Item Windows_Kurulum.txt $appDir -Force
+          if (!(Test-Path "dist\SpartaArena.exe")) {
+            throw "SpartaArena.exe olusturulamadi."
+          }
 
-          $archive = Join-Path $env:GITHUB_WORKSPACE "SpartaArena-Windows.zip"
-          Compress-Archive -Path (Join-Path $appDir "*") -DestinationPath $archive -Force
-          Write-Host "Windows paketi oluşturuldu: $archive"
-
-      - name: Windows paketini ve derleme günlüğünü sakla
+      - name: EXE dosyasını kaydet
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: Sparta-Arena-Windows
           path: |
-            SpartaArena-Windows.zip
-            windows-build.log
+            dist/SpartaArena.exe
           if-no-files-found: warn
           retention-days: 7
